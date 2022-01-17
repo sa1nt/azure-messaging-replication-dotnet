@@ -2,16 +2,16 @@
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
   "contentVersion": "1.0.0.0",
   "parameters": {
-    "rightNamespaceName": {
+    "sourceNamespaceName": {
       "value": "GEN-UNIQUE"
     },
-    "leftNamespaceName": {
-      "value": "GEN-UNIQUE"
-    },
-    "leftTopic": {
+    "sourceTopic": {
       "value": "jobs"
     },
-    "rightTopic": {
+    "targetNamespaceName": {
+      "value": "GEN-UNIQUE"
+    },
+    "targetTopic": {
       "value": "jobs"
     }
   }

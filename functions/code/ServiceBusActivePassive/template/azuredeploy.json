@@ -2,30 +2,44 @@
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "parameters": {
-    "rightNamespaceName": {
+    "sourceNamespaceName": {
       "type": "string",
       "metadata": {
-        "description": "Name of the Service Bus namespace"
+        "description": "Name of the Service Bus namespace to forward messages _from_."
       }
     },
-    "leftNamespaceName": {
+    "sourceNamespaceSku": {
       "type": "string",
+      "defaultValue": "Standard",
       "metadata": {
-        "description": "Name of the Service Bus namespace"
+        "description": "ASB SKU"
       }
     },
-    "leftTopic": {
+    "sourceTopic": {
       "type": "string",
       "defaultValue": "jobs",
       "metadata": {
-        "description": "Name of the Queue"
+        "description": "Name of the Topic"
       }
     },
-    "rightTopic": {
+    "targetNamespaceName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Service Bus namespace to forward messages _to_."
+      }
+    },
+    "targetNamespaceSku": {
+      "type": "string",
+      "defaultValue": "Standard",
+      "metadata": {
+        "description": "ASB SKU"
+      }
+    },
+    "targetTopic": {
       "type": "string",
       "defaultValue": "jobs",
       "metadata": {
-        "description": "Name of the Queue"
+        "description": "Name of the Topic"
       }
     },
     "location": {
@@ -38,25 +52,25 @@
   },
   "variables": {
     "defaultSASKeyName": "RootManageSharedAccessKey",
-    "authRuleResourceId": "[resourceId('Microsoft.ServiceBus/namespaces/authorizationRules', parameters('leftNamespaceName'), variables('defaultSASKeyName'))]"
+    "authRuleResourceId": "[resourceId('Microsoft.ServiceBus/namespaces/authorizationRules', parameters('sourceNamespaceName'), variables('defaultSASKeyName'))]"
   },
   "resources": [
     {
       "apiVersion": "2017-04-01",
-      "name": "[parameters('leftNamespaceName')]",
+      "name": "[parameters('sourceNamespaceName')]",
       "type": "Microsoft.ServiceBus/namespaces",
       "location": "[parameters('location')]",
       "sku": {
-        "name": "Premium"
+        "name": "[parameters('sourceNamespaceSku')]"
       },
       "properties": {},
       "resources": [
         {
           "apiVersion": "2017-04-01",
-          "name": "[parameters('leftTopic')]",
+          "name": "[parameters('sourceTopic')]",
           "type": "topics",
           "dependsOn": [
-            "[resourceId('Microsoft.ServiceBus/namespaces', parameters('leftNamespaceName'))]"
+            "[resourceId('Microsoft.ServiceBus/namespaces', parameters('sourceNamespaceName'))]"
           ],
           "properties": {
             "maxSizeInMegabytes": 1024
@@ -68,7 +82,7 @@
               "type": "subscriptions",
               "properties": {},
               "dependsOn": [
-                "[resourceId('Microsoft.ServiceBus/namespaces/topics', parameters('leftNamespaceName'), parameters('leftTopic'))]"
+                "[resourceId('Microsoft.ServiceBus/namespaces/topics', parameters('sourceNamespaceName'), parameters('sourceTopic'))]"
               ]
             },
             {
@@ -77,7 +91,7 @@
               "type": "subscriptions",
               "properties": {},
               "dependsOn": [
-                "[resourceId('Microsoft.ServiceBus/namespaces/topics', parameters('leftNamespaceName'), parameters('leftTopic'))]"
+                "[resourceId('Microsoft.ServiceBus/namespaces/topics', parameters('sourceNamespaceName'), parameters('sourceTopic'))]"
               ],
               "resources": [
                 {
@@ -85,7 +99,7 @@
                   "name": "replication",
                   "type": "rules",
                   "dependsOn": [
-                    "[resourceId('Microsoft.ServiceBus/namespaces/topics/subscriptions', parameters('leftNamespaceName'), parameters('leftTopic'), 'replication')]"
+                    "[resourceId('Microsoft.ServiceBus/namespaces/topics/subscriptions', parameters('sourceNamespaceName'), parameters('sourceTopic'), 'replication')]"
                   ],
                   "properties": {
                     "action": {
@@ -106,20 +120,20 @@
     },
     {
       "apiVersion": "2017-04-01",
-      "name": "[parameters('rightNamespaceName')]",
+      "name": "[parameters('targetNamespaceName')]",
       "type": "Microsoft.ServiceBus/namespaces",
       "location": "[parameters('location')]",
       "sku": {
-        "name": "Premium"
+        "name": "[parameters('targetNamespaceSku')]"
       },
       "properties": {},
       "resources": [
         {
           "apiVersion": "2017-04-01",
-          "name": "[parameters('rightTopic')]",
+          "name": "[parameters('targetTopic')]",
           "type": "topics",
           "dependsOn": [
-            "[resourceId('Microsoft.ServiceBus/namespaces', parameters('rightNamespaceName'))]"
+            "[resourceId('Microsoft.ServiceBus/namespaces', parameters('targetNamespaceName'))]"
           ],
           "properties": {},
           "resources": [
@@ -131,7 +145,7 @@
                 "maxSizeInMegabytes": "1024"
               },
               "dependsOn": [
-                "[resourceId('Microsoft.ServiceBus/namespaces/topics', parameters('rightNamespaceName'), parameters('rightTopic'))]"
+                "[resourceId('Microsoft.ServiceBus/namespaces/topics', parameters('targetNamespaceName'), parameters('targetTopic'))]"
               ]
             },
             {
@@ -140,7 +154,7 @@
               "type": "subscriptions",
               "properties": {},
               "dependsOn": [
-                "[resourceId('Microsoft.ServiceBus/namespaces/topics', parameters('rightNamespaceName'), parameters('rightTopic'))]"
+                "[resourceId('Microsoft.ServiceBus/namespaces/topics', parameters('targetNamespaceName'), parameters('targetTopic'))]"
               ],
               "resources": [
                 {
@@ -148,7 +162,7 @@
                   "name": "replication",
                   "type": "rules",
                   "dependsOn": [
-                    "[resourceId('Microsoft.ServiceBus/namespaces/topics/subscriptions', parameters('rightNamespaceName'), parameters('rightTopic'), 'replication')]"
+                    "[resourceId('Microsoft.ServiceBus/namespaces/topics/subscriptions', parameters('targetNamespaceName'), parameters('targetTopic'), 'replication')]"
                   ],
                   "properties": {
                     "action": {

@@ -82,10 +82,11 @@ for all variables prefixed with 'USER_'.
 
 ```bash
 AZURE_LOCATION=westeurope
-USER_RESOURCE_GROUP=example-sb-weu
-USER_SB_NAMESPACE_NAME=example-sb-weu
-USER_FUNCTIONS_APP_NAME=example-sb-weu
-USER_STORAGE_ACCOUNT=examplesbweu
+USER_RESOURCE_GROUP=scien1ist-sb-weu
+USER_SB_LEFT_NAMESPACE_NAME=scien1ist-sb-left-weu
+USER_SB_RIGHT_NAMESPACE_NAME=scien1ist-sb-right-weu
+USER_FUNCTIONS_APP_NAME=scien1ist-sb-weu-repl-func
+USER_STORAGE_ACCOUNT=scien1istsbweu
 ```
 
 You can deploy the template as follows, replacing the exemplary resource group
@@ -103,11 +104,11 @@ The [az login](/cli/azure/reference-index#az_login) command signs you into your 
 az group create --location $AZURE_LOCATION --name $USER_RESOURCE_GROUP
 az deployment group create --resource-group $USER_RESOURCE_GROUP \
                            --template-file 'template\azuredeploy.json' \
-                           --parameters NamespaceName='$USER_SB_NAMESPACE_NAME' \
-                                        FunctionAppName='$USER_FUNCTIONS_APP_NAME' 
+                           --parameters leftNamespaceName="$USER_SB_LEFT_NAMESPACE_NAME" \
+                                        rightNamespaceName="$USER_SB_RIGHT_NAMESPACE_NAME"
 ```
 
-The created Service Bus queues are named "jobs-transfer" and "jobs". 
+The created Service Bus topics are named "jobs" and "jobs". 
 
 ### Building, Configuring, and Deploying the Replication App
 
@@ -116,8 +117,8 @@ implements one replication task named "telemetry" that performs the copy.
 
 You will find this function in the [Tasks.cs](Tasks.cs) file. If you build a
 replication app with multiple tasks, you can add all tasks into this one file.
-You will always have a dedicated replication task for each pair of source and
-target.
+*You will always have a dedicated replication task for each pair of source and
+target.*
 
 > **IMPORTANT:**<br><br> The attribute-driven configuration model for Azure
 > Functions written in C# and Java requires that you modify the names of the
@@ -127,7 +128,7 @@ target.
 [FunctionName("jobs")]
 [ExponentialBackoffRetry(-1, "00:00:05", "00:05:00")]
 public static Task Jobs(
-    [ServiceBusTrigger(TopicName = "jobs", SubscriptionName = "repl", Connection = "jobs-source-connection")] Message[] input,
+    [ServiceBusTrigger(TopicName = "jobs", SubscriptionName = "replication", Connection = "jobs-source-connection")] Message[] input,
     [ServiceBus("jobs", Connection = "jobs-target-connection")] IAsyncCollector<Message> output,
     ILogger log)
 {
@@ -239,7 +240,7 @@ On the source topic, we will add (or reuse) a SAS authorization rule that is to 
 ``` azurecli
 az servicebus topic authorization-rule create \
                           --resource-group $USER_RESOURCE_GROUP \
-                          --namespace-name $USER_SB_NAMESPACE_NAME \
+                          --namespace-name $USER_SB_LEFT_NAMESPACE_NAME \
                           --topic-name jobs \
                           --name replication-listen \
                           --rights listen
@@ -248,21 +249,25 @@ az servicebus topic authorization-rule create \
 We will then [obtain the primary connection string](https://docs.microsoft.com/azure/service-bus-messaging/service-bus-get-connection-string) for the rule and transfer that into the application settings, here using the bash Azure Cloud Shell:
 
 ```azurecli
-cxnstring = $(az servicebus topic authorization-rule keys list \
+cxnstring=$(az servicebus topic authorization-rule keys list \
                     --resource-group $USER_RESOURCE_GROUP \
-                    --namespace-name $USER_SB_NAMESPACE_NAME \
+                    --namespace-name $USER_SB_LEFT_NAMESPACE_NAME \
                     --topic-name jobs \
                     --name replication-listen \
                     --output=json | jq -r .primaryConnectionString)
 
+cxnstring_no_entity=$cxnstring
 regex_strip_entity_name="(.*);EntityPath=.*;*(.*)$"
 if [[ $cxnstring =~ $regex_strip_entity_name ]]; then
-   cxnstring="${BASH_REMATCH[1]};${BASH_REMATCH[2]}"
+   cxnstring_no_entity="${BASH_REMATCH[1]};${BASH_REMATCH[2]}"
 fi
+
+# For local development: 
+# func settings add jobs-source-connection "$cxnstring_no_entity"
 
 az functionapp config appsettings set --name $USER_FUNCTIONS_APP_NAME \
                     --resource-group $USER_RESOURCE_GROUP \
-                    --settings "jobs-source-connection=$cxnstring"
+                    --settings "jobs-source-connection=$cxnstring_no_entity"
 ```
 
 #### Configure the target
@@ -272,7 +277,7 @@ Configuring the target is very similar, but you will create or reuse a SAS rule 
 ``` azurecli
 az servicebus topic authorization-rule create \
                           --resource-group $USER_RESOURCE_GROUP \
-                          --namespace-name $USER_SB_NAMESPACE_NAME \
+                          --namespace-name $USER_SB_RIGHT_NAMESPACE_NAME \
                           --topic-name jobs \
                           --name replication-send \
                           --rights send
@@ -281,21 +286,25 @@ az servicebus topic authorization-rule create \
 We will then again [obtain the primary connection string](https://docs.microsoft.com/azure/service-bus-messaging/service-bus-get-connection-string) for the rule and transfer that into the application settings:
 
 ```azurecli
-cxnstring = $(az servicebus topic authorization-rule keys list \
-                    --resource-group $USER_RESOURCE_NAME \
-                    --namespace-name $USER_SB_NAMESPACE_NAME \
+cxnstring=$(az servicebus topic authorization-rule keys list \
+                    --resource-group $USER_RESOURCE_GROUP \
+                    --namespace-name $USER_SB_RIGHT_NAMESPACE_NAME \
                     --topic-name jobs \
                     --name replication-send \
                     --output=json | jq -r .primaryConnectionString)
 
+cxnstring_no_entity=$cxnstring
 regex_strip_entity_name="(.*);EntityPath=.*;*(.*)$"
 if [[ $cxnstring =~ $regex_strip_entity_name ]]; then
-   cxnstring="${BASH_REMATCH[1]};${BASH_REMATCH[2]}"
+   cxnstring_no_entity="${BASH_REMATCH[1]};${BASH_REMATCH[2]}"
 fi
 
+# For local development: 
+# func settings add jobs-target-connection "$cxnstring_no_entity"
+
 az functionapp config appsettings set --name $USER_FUNCTIONS_APP_NAME \
-                    --resource-group example-eh \
-                    --settings "jobs-target-connection=$cxnstring"
+                    --resource-group $USER_RESOURCE_GROUP \
+                    --settings "jobs-target-connection=$cxnstring_no_entity"
 ```
 
 #### Deploying the application
