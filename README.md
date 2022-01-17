@@ -1,5 +1,9 @@
 ## Azure Messaging Replication Tasks with .NET Core
 
+> **NOTE**<br><br>
+> All my changes focus on [`ServiceBusActivePassive`](/functions/code/ServiceBusActivePassive) example, which itself is an attempt to implement [Active-Passive Replication](https://docs.microsoft.com/en-us/azure/service-bus-messaging/service-bus-federation-overview#active-passive-replication) approach.
+
+
 This project contains a set of samples that demonstrate how to create Azure
 Messaging replication tasks using the Azure Functions runtime with .NET Core as
 the exemplary implementation language. The guidance equivalently applies to all
