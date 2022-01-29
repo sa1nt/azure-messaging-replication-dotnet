@@ -322,6 +322,11 @@ Using the Azure Functions tools, the simplest way to deploy the application is t
 func azure functionapp publish $USER_FUNCTIONS_APP_NAME --force
 ```
 
+> **NOTE**<br><br>
+> I encountered a [NU1101](https://docs.microsoft.com/en-us/nuget/reference/errors-and-warnings/nu1101) NuGet error when doing this initially. Turned out that NuGet package source wasn't enabled on my machine.  
+> To enable: `dotnet nuget add source https://api.nuget.org/v3/index.json -n nuget.org`  
+> See: https://stackoverflow.com/a/70007680/255786
+
 ### Monitoring
 
 To learn how you can monitor your replication app, please refer to the [monitoring section](https://docs.microsoft.com/azure/azure-functions/configure-monitoring?tabs=v2) of the Azure Functions documentation.
